@@ -17,26 +17,23 @@ class CollisionAlarmNodelet: public nodelet::Nodelet{
     ros::Timer timer_;
     ros::NodeHandle nh_;
     size_t WaypointArrayLastIndexBehind = 0; // move to ctor
-    long WaypointArrayLastIndexFront = 0; // move to ctor
+    long WaypointArrayLastIndexFront = -1; // move to ctor
 
     tf::TransformListener tflistener_;
     tf::TransformListener tflistener2_;
     tf::StampedTransform tftransform;
     tf::StampedTransform tftransform2;
 
-    size_t minWaypointCount = 5; // take from parameter server
     double distance_threshold = 0.2; // meters, robot footprint can update it, or parameter server
     size_t obstacleOnTheWayVoteThreshold = 5; // parameter server maybe
     sensor_msgs::LaserScanConstPtr laserScanPtr_=nullptr;
     nav_msgs::PathPtr waypointsPtr_= nullptr;
     void filterWaypoints(const nav_msgs::Path::ConstPtr &);
     std::vector<tuw::Point2D> laserEndPoints;
-    nav_msgs::Path newWayPoints_;
+    geometry_msgs::PoseStamped newGoalPoseStamped;
 
 
-
-    size_t calculateNumberOfWaypointsToBeConsidered(const nav_msgs::Path::ConstPtr& );
-    nav_msgs::Path createNewWaypoints(size_t index, const nav_msgs::Path::ConstPtr&);
+    void setNewGoalPose(size_t &index, const nav_msgs::Path::ConstPtr&);
     tuw::Point2D calculateLaserEndpoints(size_t laserScanIndex);
 
 

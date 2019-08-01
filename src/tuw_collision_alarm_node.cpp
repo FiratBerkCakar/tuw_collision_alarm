@@ -10,7 +10,7 @@ namespace tuw_collision_alarm {
 
         sub_laser_ = nh_.subscribe("laser0/scan", 10, &CollisionAlarmNodelet::callbackLaser, this);
         sub_path_ = nh_.subscribe("global_planner/planner/plan", 1, &CollisionAlarmNodelet::callbackPath, this);
-        pub_path = nh_.advertise<nav_msgs::Path>("collision_alarm_path", 10);
+        pub_path = nh_.advertise<geometry_msgs::PoseStampedConstPtr>("collision_alarm_pose", 1);
         timer_ = nh_.createTimer(ros::Duration(0.1), boost::bind(&CollisionAlarmNodelet::callbackTimer, this, _1));
 
 
@@ -24,7 +24,7 @@ namespace tuw_collision_alarm {
                 continue;
             }
             laserEndPoints.push_back(calculateLaserEndpoints(j)); // already transformed to robot coordinates
-            NODELET_INFO ("Laser CallBack Received...");
+            NODELET_INFO ("Laser CallBack Received and Transformed...");
 
         }
 
@@ -42,27 +42,11 @@ namespace tuw_collision_alarm {
     }
 
 
-    nav_msgs::Path
-    CollisionAlarmNodelet::createNewWaypoints(size_t index, const nav_msgs::Path::ConstPtr &poseArray) {
-        nav_msgs::Path newWayPoints;
-        if (index < minWaypointCount) {
-            NODELET_INFO ("I aint no motherfucking ...");
-            // GOTTA SEND A STOP COMMAND SOMEHOW
 
-        } else {
+    void CollisionAlarmNodelet::setNewGoalPose(size_t &index, const nav_msgs::Path::ConstPtr &poseArray) {
+        newGoalPoseStamped=poseArray->poses[index];
+        newGoalPoseStamped.header.stamp= ros::Time::now();
 
-            newWayPoints.header.stamp = ros::Time::now();
-            newWayPoints.header.frame_id = "map";
-            for (size_t i = 0; i <= index; i++) {
-
-
-                newWayPoints.poses.push_back(poseArray->poses[i]);
-                newWayPoints.poses[i].header.stamp = ros::Time::now();
-
-            }
-        }
-
-        return newWayPoints;
     }
 
     tuw::Point2D CollisionAlarmNodelet::calculateLaserEndpoints(size_t laserScanIndex) {
@@ -123,7 +107,7 @@ namespace tuw_collision_alarm {
                 tuw::Point2D wayPoint1(poseN1.position.x, poseN1.position.y);
                 tuw::LineSegment2D lineSegment(wayPoint0, wayPoint1); //create the line segment
 
-                for (auto laserEndPoint: laserEndPoints) {
+                for (const auto& laserEndPoint: laserEndPoints) {
                     double distance_to_line = lineSegment.distanceTo(laserEndPoint);
                     if (distance_to_line < distance_threshold) {
                         obstacleOnTheWayVote += 1;
@@ -142,8 +126,8 @@ namespace tuw_collision_alarm {
 
         } else { // there is an obstacle between waypoint i and i +1 , better send the i-1 as the last pose
             ROS_INFO("SOMETHING ON THE WAY");
-            newWayPoints_ = createNewWaypoints(i - 1, waypointsPtr_);
-            pub_path.publish(newWayPoints_);
+            setNewGoalPose(i,waypointsPtr_);
+            pub_path.publish(newGoalPoseStamped);
 
         }
 
