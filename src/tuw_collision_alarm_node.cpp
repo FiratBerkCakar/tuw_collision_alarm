@@ -23,10 +23,10 @@ namespace tuw_collision_alarm {
 
     }
 
-    void CollisionAlarmNodelet::callbackPath(const nav_msgs::Path::ConstPtr &poseArray) {
+    void CollisionAlarmNodelet::callbackPath(const nav_msgs::Path poseArray) {
         //making the assumption that the Poses are ordered in such a way that the first is the closest to the robot
         //size_t goalArraySize = poseArray->poses.size();
-        waypointsPtr_ = poseArray;
+        waypointsPtr_ = boost::make_shared<nav_msgs::Path>(poseArray);
         NODELET_INFO ("PathCB received...");
 
 
@@ -35,6 +35,15 @@ namespace tuw_collision_alarm {
     size_t CollisionAlarmNodelet::calculateNumberOfWaypointsToBeConsidered(const nav_msgs::Path::ConstPtr &poseArray) {
         double firstWaypointX = poseArray->poses[0].pose.position.x;
         double firstWaypointY = poseArray->poses[0].pose.position.y;
+        NODELET_INFO("ALL WAYPOINTS TRANSFORMED ACCORDING TO THE ROBOT: ");
+        for (auto pose1 : poseArray->poses) {
+            tf::Transform temp_tf_object;
+            tf::poseMsgToTF(pose1.pose , temp_tf_object);
+            tf::poseTFToMsg(tftransform2 * temp_tf_object, pose1.pose);
+            NODELET_INFO("x = %lf, y = x = %lf",pose1.pose.orientation.x,pose1.pose.orientation.y);
+
+
+        }
         double radius = laserScanPtr_->range_max;
         size_t numberofWaypointsToBeConsidered = 0;
         for (const auto &pose : poseArray->poses) {
@@ -91,7 +100,8 @@ namespace tuw_collision_alarm {
     void CollisionAlarmNodelet::callbackTimer(const ros::TimerEvent &event) {
         NODELET_INFO ("TimerCB received...");
         try {
-            tflistener_.lookupTransform("/map", "r0/laser0", ros::Time(0), tftransform);
+            tflistener_.lookupTransform("r0/base_link", "r0/laser0", ros::Time(0), tftransform);
+            tflistener2_.lookupTransform("r0/base_link", "map", ros::Time(0), tftransform2);
         }
         catch (tf::TransformException &ex) {
             ROS_ERROR("%s", ex.what());
@@ -101,17 +111,16 @@ namespace tuw_collision_alarm {
         if (waypointsPtr_ == nullptr || laserScanPtr_ == nullptr) {
             return;
         }
-        NODELET_INFO ("Scan and Waypoints received...");
         size_t obstacleOnTheWayVote = 0;
-        NODELET_INFO("Total Way Points %ld " ,waypointsPtr_->poses.size());
+        //NODELET_INFO("Total Way Points %ld " ,waypointsPtr_->poses.size());
         size_t maxWaypointsIndex = calculateNumberOfWaypointsToBeConsidered(waypointsPtr_) - 1; // dont take every pose
         size_t i = 0;
-        NODELET_INFO("maxWaypointsIndex %ld " ,maxWaypointsIndex);
-        NODELET_INFO("Laser Scan total number %ld " , laserScanPtr_->ranges.size());
-        for (size_t k = 0; k < maxWaypointsIndex; k++) {
-            NODELET_INFO(" k= %ld, x = %lf , y = %lf " ,k, waypointsPtr_->poses[k].pose.position.x, waypointsPtr_->poses[k].pose.position.y);
+        //NODELET_INFO("maxWaypointsIndex %ld " ,maxWaypointsIndex);
+        //NODELET_INFO("Laser Scan total number %ld " , laserScanPtr_->ranges.size());
+        //for (size_t k = 0; k < maxWaypointsIndex; k++) {
+        //    NODELET_INFO(" k= %ld, x = %lf , y = %lf " ,k, waypointsPtr_->poses[k].pose.position.x, waypointsPtr_->poses[k].pose.position.y);
 
-        }
+        //}
 
 
         for (i = 0; i < maxWaypointsIndex; i++) {
