@@ -1,8 +1,0 @@
-prefix=/usr/local
-
-Name: tuw_collision_alarm
-Description: Description of tuw_collision_alarm
-Version: 0.0.0
-Cflags: 
-Libs: -L/usr/local/lib 
-Requires: 
