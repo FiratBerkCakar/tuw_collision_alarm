@@ -1,0 +1,8 @@
+prefix=/home/firat/projects/catkin/mpn/ws01/src/tuw_collision_alarm/cmake-build-debug/devel
+
+Name: tuw_collision_alarm
+Description: Description of tuw_collision_alarm
+Version: 0.0.0
+Cflags: 
+Libs: -L/home/firat/projects/catkin/mpn/ws01/src/tuw_collision_alarm/cmake-build-debug/devel/lib 
+Requires: 
