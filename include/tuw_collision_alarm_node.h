@@ -14,15 +14,16 @@ class CollisionAlarmNodelet: public nodelet::Nodelet{
     ros::Publisher pub_path;
     ros::Subscriber sub_laser_;
     ros::Subscriber sub_path_;
+    ros::Timer timer_;
     ros::NodeHandle nh_;
-    tf::TransformListener tflistener;
+    tf::TransformListener tflistener_;
     tf::StampedTransform tftransform;
 
     size_t minWaypointCount = 5; // take from parameter server
     double distance_threshold = 1; // meters, robot footprint can update it, or parameter server
     size_t obstacleOnTheWayVoteThreshold = 5; // parameter server maybe
     sensor_msgs::LaserScanConstPtr laserScanPtr_=nullptr;
-    //nav_msgs::PathPtr waypointsPtr_= nullptr;
+    nav_msgs::PathConstPtr waypointsPtr_= nullptr;
 
 
     size_t calculateNumberOfWaypointsToBeConsidered(const nav_msgs::Path::ConstPtr& );
@@ -34,6 +35,7 @@ public:
     virtual void onInit();
     void callbackLaser ( const sensor_msgs::LaserScan::ConstPtr& );
     void callbackPath (const nav_msgs::Path::ConstPtr& );
+    void callbackTimer(const ros::TimerEvent& event);
 
 
 
