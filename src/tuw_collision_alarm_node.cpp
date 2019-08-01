@@ -19,56 +19,35 @@ namespace tuw_collision_alarm {
     void CollisionAlarmNodelet::callbackLaser(const sensor_msgs::LaserScan::ConstPtr &input_scan) {
         //laserScanPtr_ = boost::make_shared<sensor_msgs::LaserScan::ConstPtr> (input_scan);
         laserScanPtr_ = input_scan;
-        NODELET_INFO ("Laser CallBack Received...");
+        for (size_t j = 0; j < laserScanPtr_->ranges.size(); j++) {
+            if (std::isnan(laserScanPtr_->ranges[j])) { //skip the NaN measurements
+                continue;
+            }
+            laserEndPoints.push_back(calculateLaserEndpoints(j)); // already transformed to robot coordinates
+            NODELET_INFO ("Laser CallBack Received...");
+
+        }
 
     }
 
-    void CollisionAlarmNodelet::callbackPath(const nav_msgs::Path poseArray) {
+    void CollisionAlarmNodelet::callbackPath(const nav_msgs::Path::ConstPtr &poseArray) {
         //making the assumption that the Poses are ordered in such a way that the first is the closest to the robot
         //size_t goalArraySize = poseArray->poses.size();
-        waypointsPtr_ = boost::make_shared<nav_msgs::Path>(poseArray);
+        waypointsPtr_ = poseArray;
+        WaypointArrayLastIndexBehind = 0; // start allover again when there is a new waypoint array
+        WaypointArrayLastIndexFront = -1;
         NODELET_INFO ("PathCB received...");
 
 
     }
 
-    size_t CollisionAlarmNodelet::calculateNumberOfWaypointsToBeConsidered(const nav_msgs::Path::ConstPtr &poseArray) {
-        double firstWaypointX = poseArray->poses[0].pose.position.x;
-        double firstWaypointY = poseArray->poses[0].pose.position.y;
-        NODELET_INFO("ALL WAYPOINTS TRANSFORMED ACCORDING TO THE ROBOT: ");
-        for (auto pose1 : poseArray->poses) {
-            tf::Transform temp_tf_object;
-            tf::poseMsgToTF(pose1.pose , temp_tf_object);
-            tf::poseTFToMsg(tftransform2 * temp_tf_object, pose1.pose);
-            NODELET_INFO("x = %lf, y = x = %lf",pose1.pose.orientation.x,pose1.pose.orientation.y);
 
-
-        }
-        double radius = laserScanPtr_->range_max;
-        size_t numberofWaypointsToBeConsidered = 0;
-        for (const auto &pose : poseArray->poses) {
-            if (sqrt(pow(firstWaypointX - pose.pose.position.x, 2) + pow(firstWaypointY - pose.pose.position.y, 2)) <
-                radius) {
-                numberofWaypointsToBeConsidered++;
-
-            } else {
-                break;
-            }
-
-        }
-        return numberofWaypointsToBeConsidered;
-
-    }
-
-    nav_msgs::Path CollisionAlarmNodelet::createNewWaypoints(size_t index, const nav_msgs::Path::ConstPtr &poseArray) {
+    nav_msgs::Path
+    CollisionAlarmNodelet::createNewWaypoints(size_t index, const nav_msgs::Path::ConstPtr &poseArray) {
         nav_msgs::Path newWayPoints;
         if (index < minWaypointCount) {
             NODELET_INFO ("I aint no motherfucking ...");
-            size_t missingWaypoints = (minWaypointCount - index) + 1;
-            while (missingWaypoints != 0) {
-                break; //what evah, gotta think about it
-
-            }
+            // GOTTA SEND A STOP COMMAND SOMEHOW
 
         } else {
 
@@ -100,7 +79,7 @@ namespace tuw_collision_alarm {
     void CollisionAlarmNodelet::callbackTimer(const ros::TimerEvent &event) {
         NODELET_INFO ("TimerCB received...");
         try {
-            tflistener_.lookupTransform("r0/base_link", "r0/laser0", ros::Time(0), tftransform);
+            tflistener_.lookupTransform("r0/base_link", "r0/laser0", ros::Time(0), tftransform); // seems correct
             tflistener2_.lookupTransform("r0/base_link", "map", ros::Time(0), tftransform2);
         }
         catch (tf::TransformException &ex) {
@@ -111,50 +90,60 @@ namespace tuw_collision_alarm {
         if (waypointsPtr_ == nullptr || laserScanPtr_ == nullptr) {
             return;
         }
+
+        filterWaypoints(waypointsPtr_);
+
+
+    }
+
+    void CollisionAlarmNodelet::filterWaypoints(const nav_msgs::Path::ConstPtr &poseArray) {
+        //assuming that i got the transfrom and a path
+        // transform the path 1 by one, dont do it beforehand
         size_t obstacleOnTheWayVote = 0;
-        //NODELET_INFO("Total Way Points %ld " ,waypointsPtr_->poses.size());
-        size_t maxWaypointsIndex = calculateNumberOfWaypointsToBeConsidered(waypointsPtr_) - 1; // dont take every pose
+        tf::Transform temp_tf_object;
+        geometry_msgs::Pose poseN0;
+        geometry_msgs::Pose poseN1;
         size_t i = 0;
-        //NODELET_INFO("maxWaypointsIndex %ld " ,maxWaypointsIndex);
-        //NODELET_INFO("Laser Scan total number %ld " , laserScanPtr_->ranges.size());
-        //for (size_t k = 0; k < maxWaypointsIndex; k++) {
-        //    NODELET_INFO(" k= %ld, x = %lf , y = %lf " ,k, waypointsPtr_->poses[k].pose.position.x, waypointsPtr_->poses[k].pose.position.y);
+        for (i = WaypointArrayLastIndexBehind;
+             i < poseArray->poses.size() - 1; i++) { // -1 cuz, N elements, 0-1, 1-2 ... (N-2) - ( N-1)
+            tf::poseMsgToTF(poseArray->poses[i].pose, temp_tf_object);
+            tf::poseTFToMsg(tftransform2 * temp_tf_object, poseN0);
+            if (poseN0.position.x < 0) { //check if its behind the robot i.e x<0
+                WaypointArrayLastIndexBehind = i; // save this index to start from this next time
+                continue; // go the next iteration cuz we are not interested
+            } else if (poseN0.position.x > laserScanPtr_->range_max) {
+                WaypointArrayLastIndexFront = i; // save this to check timely loop ending
+                break; //no need to check any further, we are beyond the lasers scan range
 
-        //}
+            } else {
+                tf::poseMsgToTF(poseArray->poses[i + 1].pose, temp_tf_object);
+                tf::poseTFToMsg(tftransform2 * temp_tf_object, poseN1); // transform the next waypoint
+                // we assume the next one wont be beind anyhow
+                tuw::Point2D wayPoint0(poseN0.position.x, poseN0.position.y);
+                tuw::Point2D wayPoint1(poseN1.position.x, poseN1.position.y);
+                tuw::LineSegment2D lineSegment(wayPoint0, wayPoint1); //create the line segment
 
-
-        for (i = 0; i < maxWaypointsIndex; i++) {
-            tuw::Point2D wayPoint0(waypointsPtr_->poses[i].pose.position.x, waypointsPtr_->poses[i].pose.position.y);
-            tuw::Point2D wayPoint1(waypointsPtr_->poses[i + 1].pose.position.x,
-                                   waypointsPtr_->poses[i + 1].pose.position.y);
-            tuw::LineSegment2D lineSegment(wayPoint0, wayPoint1);
-
-            NODELET_INFO ("Line Segment received...");
-            for (size_t j = 0; j < laserScanPtr_->ranges.size(); j++) {
-                if (std::isnan(laserScanPtr_->ranges[j])) { //skip the NaN measurements
-                    continue;
+                for (auto laserEndPoint: laserEndPoints) {
+                    double distance_to_line = lineSegment.distanceTo(laserEndPoint);
+                    if (distance_to_line < distance_threshold) {
+                        obstacleOnTheWayVote += 1;
+                    }
                 }
-                tuw::Point2D laserEndpoint = calculateLaserEndpoints(j);
-                NODELET_INFO ("Endpoint calculated for laser index =  %ld  waypointindex %ld",j,i);
-                double distance_to_line = lineSegment.distanceTo(laserEndpoint);
-                if (distance_to_line < distance_threshold) {
-                    obstacleOnTheWayVote += 1;
-                }
-            }
 
-            if (obstacleOnTheWayVote > obstacleOnTheWayVoteThreshold) {
-                ROS_INFO("I SHOUDLNT BE HERE");
-                break;
             }
-            ROS_INFO("CALCULATION DONE");
+            if (obstacleOnTheWayVote > obstacleOnTheWayVoteThreshold) { //There is an obstacle close to the current
+                break; //segment, no need to check any further
+            }
         }
-        ROS_INFO("out of the loop");
-        if (i == maxWaypointsIndex) {
+
+        if (i == WaypointArrayLastIndexFront) { // loop broke cuz we are past the laser range, -> all clear
+            ROS_INFO("ALL CLEAR...");
             return; // everything is aight, dont do anything
 
         } else { // there is an obstacle between waypoint i and i +1 , better send the i-1 as the last pose
-
-            pub_path.publish(createNewWaypoints(i - 1, waypointsPtr_));
+            ROS_INFO("SOMETHING ON THE WAY");
+            newWayPoints_ = createNewWaypoints(i - 1, waypointsPtr_);
+            pub_path.publish(newWayPoints_);
 
         }
 
@@ -163,5 +152,7 @@ namespace tuw_collision_alarm {
 
 
 }
+
+
 PLUGINLIB_EXPORT_CLASS (tuw_collision_alarm::CollisionAlarmNodelet, nodelet::Nodelet)
 //int main(int argc, char **argv) {}
