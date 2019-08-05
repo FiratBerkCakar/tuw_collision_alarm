@@ -16,23 +16,26 @@ class CollisionAlarmNodelet: public nodelet::Nodelet{
     ros::Subscriber sub_path_;
     ros::Timer timer_;
     ros::NodeHandle nh_;
-    size_t WaypointArrayLastIndexBehind = 0; // move to ctor
-    long WaypointArrayLastIndexFront = -1; // move to ctor
-
     tf::TransformListener tflistener_;
-    tf::TransformListener tflistener2_;
     tf::StampedTransform tftransform;
     tf::StampedTransform tftransform2;
 
-    double distance_threshold = 0.2; // meters, robot footprint can update it, or parameter server
-    size_t obstacleOnTheWayVoteThreshold = 5; // parameter server maybe
-    sensor_msgs::LaserScanConstPtr laserScanPtr_=nullptr;
-    nav_msgs::PathPtr waypointsPtr_= nullptr;
-    void filterWaypoints(const nav_msgs::Path::ConstPtr &);
-    std::vector<tuw::Point2D> laserEndPoints;
+
+    size_t WaypointArrayLastIndexBehind;
+    long WaypointArrayLastIndexFront;
+    double distance_threshold; // meters, robot footprint can update it, or parameter server
+    size_t obstacleOnTheWayVoteThreshold; // parameter server maybe
+    size_t abruptJumpChecker;
     geometry_msgs::PoseStamped newGoalPoseStamped;
 
 
+
+    sensor_msgs::LaserScanConstPtr laserScanPtr_=nullptr;
+    nav_msgs::Path::ConstPtr waypointsPtr_= nullptr;
+    std::shared_ptr<std::vector<tuw::Point2D>> laserEndPointsPtr = nullptr;
+
+
+    void filterWaypoints(const nav_msgs::Path::ConstPtr &);
     void setNewGoalPose(size_t &index, const nav_msgs::Path::ConstPtr&);
     tuw::Point2D calculateLaserEndpoints(size_t laserScanIndex);
 
