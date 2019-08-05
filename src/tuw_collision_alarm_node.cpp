@@ -16,16 +16,15 @@ namespace tuw_collision_alarm {
 
         sub_laser_ = nh_.subscribe("laser0/scan", 10, &CollisionAlarmNodelet::callbackLaser, this);
         sub_path_ = nh_.subscribe("global_planner/planner/plan", 1, &CollisionAlarmNodelet::callbackPath, this);
-        pub_path = nh_.advertise<geometry_msgs::PoseStamped>("collision_alarm_pose", 1);
+        pub_path = nh_.advertise<geometry_msgs::PoseStamped>("goal", 1);
         timer_ = nh_.createTimer(ros::Duration(0.1), boost::bind(&CollisionAlarmNodelet::callbackTimer, this, _1));
 
 
     }
 
     void CollisionAlarmNodelet::callbackLaser(const sensor_msgs::LaserScan::ConstPtr &input_scan) {
-        //laserScanPtr_ = boost::make_shared<sensor_msgs::LaserScan::ConstPtr> (input_scan);
+
         laserEndPointsPtr = std::make_shared<std::vector<tuw::Point2D>>();
-        //laserEndPoints.clear();
         laserScanPtr_ = input_scan;
         for (size_t j = 0; j < laserScanPtr_->ranges.size(); j++) {
             if (std::isnan(laserScanPtr_->ranges[j])) { //skip the NaN measurements
@@ -33,9 +32,8 @@ namespace tuw_collision_alarm {
             }
             laserEndPointsPtr->push_back(calculateLaserEndpoints(j)); // already transformed to robot coordinates
 
-
         }
-        //NODELET_INFO ("Laser CallBack Received and Transformed...");
+
 
     }
 
@@ -47,15 +45,13 @@ namespace tuw_collision_alarm {
         WaypointArrayLastIndexFront = -1;
 
 
-
     }
 
 
+    void CollisionAlarmNodelet::setNewGoalPose(size_t index, const nav_msgs::Path::ConstPtr &poseArray) {
 
-    void CollisionAlarmNodelet::setNewGoalPose(size_t &index, const nav_msgs::Path::ConstPtr &poseArray) {
-
-        newGoalPoseStamped=poseArray->poses[index];
-        newGoalPoseStamped.header.stamp= ros::Time::now();
+        newGoalPoseStamped = poseArray->poses[index];
+        newGoalPoseStamped.header.stamp = ros::Time::now();
 
     }
 
@@ -85,7 +81,6 @@ namespace tuw_collision_alarm {
         filterWaypoints(waypointsPtr_);
 
 
-
     }
 
     void CollisionAlarmNodelet::filterWaypoints(const nav_msgs::Path::ConstPtr &poseArray) {
@@ -106,7 +101,7 @@ namespace tuw_collision_alarm {
                 WaypointArrayLastIndexBehind = i; // save this index to start from this next time
                 continue; // go the next iteration cuz we are not interested
             } else if (poseN0.position.x > (laserScanPtr_->range_max)) {
-                NODELET_INFO ("BREAKING DUE TO LASER SCAN RANGE REACHED");
+                NODELET_INFO ("BREAKING DUE TO LASER SCAN RANGE REACHED...");
                 WaypointArrayLastIndexFront = i; // save this to check timely loop ending
                 break; //no need to check any further, we are beyond the lasers scan range
 
@@ -116,38 +111,48 @@ namespace tuw_collision_alarm {
                 tuw::Point2D wayPoint0(poseN0.position.x, poseN0.position.y);
                 tuw::Point2D wayPoint1(poseN1.position.x, poseN1.position.y);
                 tuw::LineSegment2D lineSegment(wayPoint0, wayPoint1); //create the line segment
-                for (const auto& laserEndPoint: *laserEndPointsPtr) {
+                for (const auto &laserEndPoint: *laserEndPointsPtr) {
                     double distance_to_line = lineSegment.distanceTo(laserEndPoint);
                     if (distance_to_line < distance_threshold) {
                         obstacleOnTheWayVote += 1;
                     }
                 }
-                NODELET_INFO("Iterated the laser scan array, number of Obstacle on the way Votes = %lu",obstacleOnTheWayVote);
+                NODELET_INFO("Iterated the laser scan array, number of Obstacle on the way Votes = %lu",
+                             obstacleOnTheWayVote);
 
             }
             if (obstacleOnTheWayVote > obstacleOnTheWayVoteThreshold) { //There is an obstacle close to the current
                 break; //segment, no need to check any further
-            }
-            else{
+            } else {
                 obstacleOnTheWayVote = 0;
             }
         }
-        NODELET_INFO("JUST PASSED INDEX %lu",WaypointArrayLastIndexBehind);
+        NODELET_INFO("JUST PASSED INDEX %lu", WaypointArrayLastIndexBehind);
 
-        if((abruptJumpChecker + 5) < WaypointArrayLastIndexBehind ){
+        if ((abruptJumpChecker + 5) < WaypointArrayLastIndexBehind) {
             NODELET_INFO("ABRUPT JUMP!");
 
 
-            WaypointArrayLastIndexBehind = abruptJumpChecker;  }
+            WaypointArrayLastIndexBehind = abruptJumpChecker;
+        }
 
-        if (i == WaypointArrayLastIndexFront || i == poseArray->poses.size() - 1) { // loop broke cuz we are past the laser range, -> all clear
+
+        if (WaypointArrayLastIndexBehind == poseArray->poses.size() -
+                                            2) { // -2 is due the fact the final point is located at the back side of the robot
+            ROS_INFO("AT THE GOAL POSE...");
+
+
+        }
+
+        if (i == WaypointArrayLastIndexFront ||
+            i == poseArray->poses.size() - 1) { // loop broke cuz we are past the laser range, -> all clear
             ROS_INFO("ALL CLEAR...");
             WaypointArrayLastIndexFront = 0;
             return; // everything is aight, dont do anything
 
         } else { // there is an obstacle between waypoint i and i +1 , better send the i-1 as the last pose
-            ROS_INFO("SOMETHING ON THE WAY BETWEEN %lu - %lu , setting goal pose ",i,i+1);
-            setNewGoalPose(i,waypointsPtr_);
+            ROS_INFO("SOMETHING ON THE WAY BETWEEN %lu - %lu , SETTING A NEW GOAL POSE ", i, i + 1);
+            setNewGoalPose(i-1 , waypointsPtr_);
             pub_path.publish(newGoalPoseStamped);
 
         }

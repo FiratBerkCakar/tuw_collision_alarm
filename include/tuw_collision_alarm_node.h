@@ -36,7 +36,7 @@ class CollisionAlarmNodelet: public nodelet::Nodelet{
 
 
     void filterWaypoints(const nav_msgs::Path::ConstPtr &);
-    void setNewGoalPose(size_t &index, const nav_msgs::Path::ConstPtr&);
+    void setNewGoalPose(size_t index, const nav_msgs::Path::ConstPtr&);
     tuw::Point2D calculateLaserEndpoints(size_t laserScanIndex);
 
 
