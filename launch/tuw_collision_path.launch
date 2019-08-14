@@ -1,0 +1,12 @@
+<launch>
+    <arg name="robot_name" default="r0"/>
+
+
+    <group ns="$(arg robot_name)">
+        <node pkg="nodelet" type="nodelet" name="CollisionPathNodeletManager"  args="manager" output="screen"/>
+
+        <node pkg="nodelet" type="nodelet" name="CollisionPathNodelet" args="load tuw_collision_path/CollisionPathGeneratorNodelet CollisionPathNodeletManager" output="screen">
+        </node>
+
+    </group>
+</launch>

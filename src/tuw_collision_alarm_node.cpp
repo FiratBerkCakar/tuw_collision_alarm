@@ -18,6 +18,7 @@ namespace tuw_collision_alarm {
         sub_path_ = nh_.subscribe("global_planner/planner/plan", 1, &CollisionAlarmNodelet::callbackPath, this);
         pub_path = nh_.advertise<geometry_msgs::PoseStamped>("goal", 1);
         timer_ = nh_.createTimer(ros::Duration(0.1), boost::bind(&CollisionAlarmNodelet::callbackTimer, this, _1));
+        pub_waypoint_index = nh_.advertise<std_msgs::Int32>("segment_progression_index",1);
 
 
     }
@@ -128,6 +129,9 @@ namespace tuw_collision_alarm {
             }
         }
         NODELET_INFO("JUST PASSED INDEX %lu", WaypointArrayLastIndexBehind);
+        std_msgs::Int32 index_msg;
+        index_msg.data = WaypointArrayLastIndexBehind;
+        pub_waypoint_index.publish(index_msg);
 
         if ((abruptJumpChecker + 5) < WaypointArrayLastIndexBehind) {
             NODELET_INFO("ABRUPT JUMP!");

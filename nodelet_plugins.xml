@@ -5,3 +5,11 @@
         </description>
     </class>
 </library>
+
+<library path="lib/libtuw_collision_path_nodelet">
+<class name="tuw_collision_alarm/CollisionPathGeneratorNodelet" type="tuw_collision_alarm::CollisionPathGeneratorNodelet" base_class_type="nodelet::Nodelet">
+    <description>
+        This is my nodelet.
+    </description>
+</class>
+</library>

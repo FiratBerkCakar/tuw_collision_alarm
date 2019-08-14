@@ -7,11 +7,14 @@
 #include <tf/transform_listener.h>
 #include <tf/transform_datatypes.h>
 #include <pluginlib/class_list_macros.h>
+#include <std_msgs/builtin_int32.h>
 
 namespace tuw_collision_alarm {
 
 class CollisionAlarmNodelet: public nodelet::Nodelet{
     ros::Publisher pub_path;
+    ros::Publisher pub_waypoint_index;
+
     ros::Subscriber sub_laser_;
     ros::Subscriber sub_path_;
     ros::Timer timer_;

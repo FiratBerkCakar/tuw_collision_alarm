@@ -1,5 +1,5 @@
 //
-// Created by firat on 31.07.19.
+// Created by eugen on 13.08.19.
 //
 
 #include <ros/ros.h>
@@ -12,7 +12,7 @@ int main(int argc, char **argv)
     nodelet::M_string remap(ros::names::getRemappings());
     nodelet::V_string nargv;
     std::string nodelet_name = ros::this_node::getName();
-    nodelet.load(nodelet_name, "tuw_collision_alarm/CollisionAlarmNodelet", remap, nargv);
+    nodelet.load(nodelet_name, "tuw_collision_alarm/CollisionPathGeneratorNodelet", remap, nargv);
 
 
     ros::spin();
